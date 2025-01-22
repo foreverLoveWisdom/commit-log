@@ -1,5 +1,24 @@
 package server
 
+// "What problem does this file solve in the system?"
+
+//  "What role does this file play in the system’s architecture?"
+//
+//     Is it handling requests?
+//     Is it managing concurrency?
+//     Is it defining data models?
+//
+// 2️⃣ "What are the key inputs and outputs of this file?"
+//
+//     What data does it receive?
+//     What does it return or modify?
+//
+// 3️⃣ "How does this file interact with other parts of the system?"
+//
+//     Does it talk to a database?
+//     Does it call external APIs?
+//     Does it use goroutines or channels?
+
 import (
 	"fmt"
 	"sync"
