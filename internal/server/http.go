@@ -2,38 +2,33 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 )
-
-// "What problem does this file solve in the system?"
-
-//	"What role does this file play in the system's architecture?"
-//
-//	   Is it handling requests?
-//	   Is it managing concurrency?
-//	   Is it defining data models?
-//
-// 2️⃣ "What are the key inputs and outputs of this file?"
-//
-//	What data does it receive?
-//	What does it return or modify?
-//
-// 3️⃣ "How does this file interact with other parts of the system?"
-//
-//	Does it talk to a database?
-//	Does it call external APIs?
-//	Does it use goroutines or channels?
 
 func NewHTTPServer(addr string) *http.Server {
 	httpsrv := newHTTPServer()
 	r := mux.NewRouter()
 	r.HandleFunc("/", httpsrv.handleProduce).Methods("POST")
 	r.HandleFunc("/", httpsrv.handleConsume).Methods("GET")
+
+	var (
+		readHeaderTimeout = 5 * time.Second
+		readTimeout       = 10 * time.Second
+		writeTimeout      = 10 * time.Second
+		idleTimeout       = 30 * time.Second
+	)
+
 	return &http.Server{
-		Addr:    addr,
-		Handler: r,
+		Addr:              addr,
+		Handler:           r,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
 	}
 }
 
@@ -44,6 +39,59 @@ type httpServer struct {
 func newHTTPServer() *httpServer {
 	return &httpServer{
 		Log: NewLog(),
+	}
+}
+
+func (s *httpServer) handleProduce(w http.ResponseWriter, r *http.Request) {
+	var req ProduceRequest
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	off, err := s.Log.Append(req.Record)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	res := ProduceResponse{Offset: off}
+
+	err = json.NewEncoder(w).Encode(res)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *httpServer) handleConsume(w http.ResponseWriter, r *http.Request) {
+	var req ConsumeRequest
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	record, err := s.Log.Read(req.Offset)
+	if errors.Is(err, ErrOffsetNotFound) {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	res := ConsumeResponse{Record: record}
+
+	err = json.NewEncoder(w).Encode(res)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -61,26 +109,4 @@ type ConsumeRequest struct {
 
 type ConsumeResponse struct {
 	Record Record `json:"record"`
-}
-
-func (s *httpServer) handleProduce(w http.ResponseWriter, r *http.Request) {
-	var req ProduceRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	off, err := s.Log.Append(req.Record)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	res := ProduceResponse{Offset: off}
-	err = json.NewEncoder(w).Encode(res)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 }
