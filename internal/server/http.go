@@ -9,7 +9,7 @@ import (
 
 // "What problem does this file solve in the system?"
 
-//	"What role does this file play in the system’s architecture?"
+//	"What role does this file play in the system's architecture?"
 //
 //	   Is it handling requests?
 //	   Is it managing concurrency?
@@ -70,11 +70,13 @@ func (s *httpServer) handleProduce(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	off, err := s.Log.Append(req.Record)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	res := ProduceResponse{Offset: off}
 	err = json.NewEncoder(w).Encode(res)
 	if err != nil {
